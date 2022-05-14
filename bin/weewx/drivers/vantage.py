@@ -33,7 +33,7 @@ from weewx.crc16 import crc16
 log = logging.getLogger(__name__)
 
 DRIVER_NAME = 'Vantage'
-DRIVER_VERSION = '3.3.0'
+DRIVER_VERSION = '3.4.0'
 
 
 def loader(config_dict, engine):
