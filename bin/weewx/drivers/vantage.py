@@ -111,12 +111,12 @@ class BaseWrapper(object):
             except weewx.WeeWxIOError:
                 pass
 
-            log.debug("Retry #%d failed", count)
-            print("Unable to wake up console... sleeping")
+            log.debug("Wakeup retry #%d failed", count + 1)
+            print("Unable to wake up Vantage console... sleeping")
             time.sleep(self.wait_before_retry)
-            print("Unable to wake up console... retrying")
+            print("Unable to wake up Vantage console... retrying")
 
-        log.error("Unable to wake up console")
+        log.error("Unable to wake up Vantage console")
         raise weewx.WakeupError("Unable to wake up Vantage console")
 
     def send_data(self, data):
@@ -489,6 +489,12 @@ class Vantage(weewx.drivers.AbstractDevice):
         [Optional. Default is 2]
 
         loop_request: Requested packet type. 1=LOOP; 2=LOOP2; 3=both.
+
+        loop_batch: How many LOOP packets to get in a single  batch.
+        [Optional. Default is 200]
+
+        max_batch_errors: How many errors to allow in a batch before a restart.
+        [Optional. Default is 3]
         """
 
         log.debug('Driver version is %s', DRIVER_VERSION)
@@ -503,6 +509,8 @@ class Vantage(weewx.drivers.AbstractDevice):
             raise weewx.UnsupportedFeature("Unknown model_type (%d)" % self.model_type)
         self.loop_request = to_int(vp_dict.get('loop_request', 1))
         log.debug("Option loop_request=%d", self.loop_request)
+        self.loop_batch = to_int(vp_dict.get('loop_batch', 200))
+        self.max_batch_errors = to_int(vp_dict.get('max_batch_errors', 3))
 
         self.save_day_rain = None
         self.max_dst_jump = 7200
@@ -532,7 +540,7 @@ class Vantage(weewx.drivers.AbstractDevice):
             # Get LOOP packets in big batches This is necessary because there is
             # an undocumented limit to how many LOOP records you can request
             # on the VP (somewhere around 220).
-            for _loop_packet in self.genDavisLoopPackets(200):
+            for _loop_packet in self.genDavisLoopPackets(self.loop_batch):
                 yield _loop_packet
 
     def genDavisLoopPackets(self, N=1):
@@ -545,29 +553,30 @@ class Vantage(weewx.drivers.AbstractDevice):
         """
 
         log.debug("Requesting %d LOOP packets.", N)
-        
-        self.port.wakeup_console(self.max_tries)
-        
-        if self.loop_request == 1:
-            # If asking for old-fashioned LOOP1 data, send the older command in case the
-            # station does not support the LPS command:
-            self.port.send_data(b"LOOP %d\n" % N)
-        else:
-            # Request N packets of type "loop_request":
-            self.port.send_data(b"LPS %d %d\n" % (self.loop_request, N))
 
-        for loop in range(N):
-            for count in range(self.max_tries):
-                try:
-                    loop_packet = self._get_packet()
-                except weewx.WeeWxIOError as e:
-                    log.error("LOOP try #%d; error: %s", count + 1, e)
+        attempt = 1
+        while attempt <= self.max_batch_errors:
+            try:
+                self.port.wakeup_console(self.max_tries)
+                if self.loop_request == 1:
+                    # If asking for old-fashioned LOOP1 data, send the older command in case the
+                    # station does not support the LPS command:
+                    self.port.send_data(b"LOOP %d\n" % N)
                 else:
+                    # Request N packets of type "loop_request":
+                    self.port.send_data(b"LPS %d %d\n" % (self.loop_request, N))
+
+                for loop in range(N):
+                    loop_packet = self._get_packet()
                     yield loop_packet
-                    break
-            else:
-                log.error("LOOP max tries (%d) exceeded.", self.max_tries)
-                raise weewx.RetriesExceeded("Max tries exceeded while getting LOOP data.")
+
+            except weewx.WeeWxIOError as e:
+                log.error("LOOP batch try #%d; error: %s", attempt, e)
+                attempt += 1
+        else:
+            msg = "LOOP max batch errors (%d) exceeded." % self.max_batch_errors
+            log.error(msg)
+            raise weewx.RetriesExceeded(msg)
 
     def _get_packet(self):
         """Get a single LOOP packet"""

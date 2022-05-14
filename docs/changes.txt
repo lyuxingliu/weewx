@@ -7,6 +7,9 @@ Don't swallow syntax errors when wee_config is looking for drivers.
 Fix problem that create 'ghost' values for VantageVue stations.
 Fixes issue #771.
 
+Try waking the Vantage console before giving up on LOOP errors.
+Fixes issue #772.
+
 
 4.8.0 04/21/2022
 Allow unit to be overridden for a specific plot by using new option 'unit'.
