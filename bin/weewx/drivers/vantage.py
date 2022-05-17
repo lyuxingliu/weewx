@@ -108,13 +108,11 @@ class BaseWrapper(object):
                 if _resp == b'\n\r':
                     log.debug("Rude wake up of console successful")
                     return
-            except weewx.WeeWxIOError:
-                pass
-
-            log.debug("Wakeup retry #%d failed", count + 1)
-            print("Unable to wake up Vantage console... sleeping")
-            time.sleep(self.wait_before_retry)
-            print("Unable to wake up Vantage console... retrying")
+            except weewx.WeeWxIOError as e:
+                log.debug("Wakeup retry #%d failed: %s", count + 1, e)
+                print("Unable to wake up Vantage console... sleeping")
+                time.sleep(self.wait_before_retry)
+                print("Unable to wake up Vantage console... retrying")
 
         log.error("Unable to wake up Vantage console")
         raise weewx.WakeupError("Unable to wake up Vantage console")
@@ -155,9 +153,8 @@ class BaseWrapper(object):
                 _resp = self.read()
                 if _resp == _ack:
                     return
-            except weewx.WeeWxIOError:
-                pass
-            log.debug("send_data_with_crc16; try #%d", count + 1)
+            except weewx.WeeWxIOError as e:
+                log.debug("send_data_with_crc16; try #%d: %s", count + 1, e)
 
         log.error("Unable to pass CRC16 check while sending data to Vantage console")
         raise weewx.CRCError("Unable to pass CRC16 check while sending data to Vantage console")
@@ -185,10 +182,9 @@ class BaseWrapper(object):
                     # Return the rest:
                     return _buffer_list[1:]
 
-            except weewx.WeeWxIOError:
-                # Caught an error. Keep trying...
-                pass
-            log.debug("send_command; try #%d failed", count + 1)
+            except weewx.WeeWxIOError as e:
+                # Caught an error. Log, then keep trying...
+                log.debug("send_command; try #%d failed: %s", count + 1, e)
         
         msg = "Max retries exceeded while sending command %s" % command
         log.error(msg)

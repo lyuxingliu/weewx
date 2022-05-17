@@ -8,6 +8,7 @@ Fix problem that create 'ghost' values for VantageVue stations.
 Fixes issue #771.
 
 Try waking the Vantage console before giving up on LOOP errors.
+Better Vantage diagnostics.
 Fixes issue #772.
 
 
